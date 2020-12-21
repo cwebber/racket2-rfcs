@@ -55,51 +55,13 @@ define drawer                             |  (define drawer
   make-pict-drawer p                      |    (make-pict-drawer p))
 ```
 
-To properly correspond to intuition, a line with only one argument is
-assumed to not be an application, whereas a line with multiple
-arguments is:
+But how to handle many arguments that aren't composing a new expression?
+A leading `.` period can be used to continue a line:
 
 ``` racket
-displayln                               |  (displayln
-  string-append "hello "                |    (string-append "hello "
-                name                    |                   name
-                "!"                     |                   "!"))
+list 1 2 3                                |  (list 1 2 3
+   . 4 5 6                                |        4 5 6)
 ```
-
-``` racket
-displayln                               |  (displayln
-  string-append "hello "                |    (string-append "hello "
-                string-upcase name      |                   (string-upcase name)
-                "!"                     |                   "!"))
-```
-
-But how to handle arguments that aren't composing a new expression, but
-are on the same line?
-A `\` backslash can be used to continue a line:
-
-``` racket
-list 1 2 3 \                              |  (list 1 2 3
-     4 5 6                                |        4 5 6)
-```
-
-Make sure the `\` backslash is at the very end, with no other characters
-between it and the newline.
-
-However, this isn't good enough for all cirucumstances; a more precise
-operator is to use an `&` ampersand which can separate expressions
-that would otherwise be grouped by line or indentation.
-Its purpose is made clearer by example:
-
-``` racket
-overlay/offset                            |  (overlay/offset                   
-  rectangle 100 10 "solid" "blue"         |   (rectangle 100 10 "solid" "blue")
-  10 & 10                                 |   10 10                        
-  rectangle 10 100 "solid" "red"          |   (rectangle 10 100 "solid" "red"))
-```
-
-As we can see above, no use of backslash would have as correctly
-allowed us to put `10` and `10` on the same line.
-`&` to the rescue!
 
 Keywords are implicitly considered to be continuing arguments in the
 previous expression:
@@ -114,8 +76,8 @@ as "greater" than the previous, it is "nested into the parent
 expression":
 
 ``` racket
-standard-cat \                            |  (standard-cat
-  100 90                                  |   100 90
+standard-cat                              |  (standard-cat
+  . 100 90                                |   100 90
   #:happy? #t                             |   #:happy? #t)
 ```
 
@@ -127,24 +89,25 @@ define drawer (make-pict-drawer p)        |  (define drawer (make-pict-drawer p)
 ```
 
 ``` racket
-define (display-excitement str)           |  (define (display-excitement str)
-  format "I'm SO EXCITED about ~a!!!"     |    (format "I'm SO EXCITED about ~a!!!"
-         string-upcase str                |            (string-upcase str)))
+define (display-excitement str reasons r2)|  (define (display-excitement str reason)
+  format "SO EXCITED about ~a (~a, ~a)!!" |    (format "SO EXCITED about ~a (~a, ~a)!!"
+         string-upcase str                |            (string-upcase str)
+         . reason r2                      |            reason r2))
 ```
 
-However, for the most part, lines within a parenthetical expression still
-follow expresions still generally follow Wraith's rules
-(note that this is a major departure from Sweet Expressions and Wisp!):
+Lines within a parenthetical expression still
+follow expressions still generally follow Wraith's rules
+(note that this is a departure from Sweet Expressions and Wisp!):
 
 ``` racket
-define (greeter name)                     |  (define (greeter name)
-  let ((to-say                            |    (let ((to-say
-          format "Hey there ~a! :D"       |           (format "Hey there ~a! :D"
-                 name))                   |                   name)))
-    displayln to-say                      |      (displayln to-say)))
+let* [animal "dog"                        |  (let* [(animal "dog")
+      noise "barks"                       |         (noise "barks")
+      player-hears                        |         (player-hears
+        format "the ~a says: ~a!!!"       |          (format "the ~a says: ~a!!!"
+               . animal noise]            |                  animal noise))]
+  displayln player-hears                  |    (displayln player-hears))
 ```
-
-However, that let looks very parenthetical still.
+However, that let still looks busy.
 If we're deviating from s-expressions, is there a way to make
 it less nested?
 
@@ -155,14 +118,6 @@ as "a wrapped set of wrapped expressions".
 This makes aesthetically more appealing `let` and `for` syntax examples.
 
 ``` racket
-define (greeter name)                     |  (define (greeter name)
-  let [to-say                             |    (let [(to-say
-         format "Hey there ~a! :D"        |           (format "Hey there ~a! :D"
-                name]                     |                   name))]
-    displayln to-say                      |      (displayln to-say)))
-```
-
-``` racket
 for [pet '("cat" "dog" "horse")]          |  (for [(pet '("cat" "dog" "horse"))]
   printf "I love my ~a!\n" pet            |    (printf "I love my ~a!\n" pet))
 ```
@@ -171,24 +126,34 @@ for [pet '("cat" "dog" "horse")]          |  (for [(pet '("cat" "dog" "horse"))]
 define (counting-letters-song letters)    |  (define (counting-letters-song letters)
   for [letter letters                     |    (for [(letter letters)
        number (in-naturals 1)]            |          (number (in-naturals 1))]
-    printf "I like ~a, it's number ~a!" \ |      (printf "I like ~a, it's number ~a!"
-      letter number                       |         letter number)
-    (newline)                             |      (newline))
+    printf "I like ~a, it's number ~a!"   |      (printf "I like ~a, it's number ~a!"
+      . letter number                     |         letter number)
+    newline                               |      (newline))
   displayln "Singing a letters song!"     |    (displayln "Singing a letters song!"))
 ```
 
+The first line of the bracketized expression is always closed at the
+end of the line. To use a multi-line expression, it must be on its own line.
+
 ``` racket
-let* [animal "dog"                        |  (let* [(animal "dog")
-      noise "barks"                       |         (noise "barks")
-      player-hears                        |         (player-hears
-        format "the ~a says: ~a!!!" \     |          (format "the ~a says: ~a!!!"
-               animal noise]              |                  animal noise))]
-  displayln player-hears                  |    (displayln player-hears))
+define (greeter name)                     |  (define (greeter name)
+  let ((to-say                            |    (let ((to-say
+          format "Hey there ~a! :D"       |           (format "Hey there ~a! :D"
+                 . name))                 |                   name)))
+    displayln to-say                      |      (displayln to-say)))
 ```
 
-However, in Wraith, new lines of content within parenthetical/bracketed
-expressions are not permitted to have less indentation than the column
-after the opening parenthesis.
+``` racket
+define (greeter name)                     |  (define (greeter name)
+  let [                                   |    (let (
+       to-say                             |          (to-say
+          format "Hey there ~a! :D"       |           (format "Hey there ~a! :D"
+                 . name]                  |                   name)))
+    displayln to-say                      |      (displayln to-say)))
+```
+
+New lines of content within parenthetical/bracketed expressions must
+have deeper indentation than the line with the opening parenthesis.
 In other words, the following is an error and not permitted:
 
 ``` racket
@@ -206,21 +171,21 @@ operation problems", which confuse students and mathematicians
 everywhere and are generally solved by putting parentheses back around
 operations.  Thus Wraith partially borrows from
 [SRFI 105](https://srfi.schemers.org/srfi-105/srfi-105.html)
-for curly infix operations but only permits one infix operation
+for curly infix operations but only permits one kind of infix operation
 per curly-grouping:
 
 ``` racket
 define (double x)                      |  (define (double x)
-  {x * 2}                              |    (* x 2))
+  . {x * 2}                            |    (* x 2))
 ```
 
 ``` racket
 define (squared-minus-one x)           |  (define (squared-minus-one x)
-  {{x * x} - 1}                        |    (- (* x x) 1))
+  . {{x * x} - 1}                      |    (- (* x x) 1))
 ```
 
 ``` racket
-{1 + 2 + {9 / 3}}                      |  (+ 1 2 (/ 9 3))
+. {1 + 2 + {9 / 3}}                    |  (+ 1 2 (/ 9 3))
 ```
 
 # Reference-level explanation
@@ -249,12 +214,6 @@ There are 4 ways of grouping expressions together in Wraith:
         ...
         c_n)
       ```
-      or
-      ```
-      (a_1
-       ...
-       a_n)
-      ```
   3. Square Brackets
       ```
       [a_1 b_1_1 ... b_1_m
@@ -272,7 +231,7 @@ There are 4 ways of grouping expressions together in Wraith:
       {a_1 op a_2 ... op a_n}
       ```
 
-Indentation applies to expressions both outside and inside parens and brackets.
+Indentation applies to expressions both outside and inside parens and brackets. However it only considers leading indentation.
 
 Within an indented expression:
 ```
@@ -281,22 +240,12 @@ a b_1 ... b_m
   ...
   c_n
 ```
-The indentation of each `c` expression must be:
- * greater than the indentation of the `a` expression, and
- * less than or equal to the indentation of the first `b` expression and the previous `c` expression (if it exists)
-
-If a potential `c` has indentation less than that, it will not be considered part of `a`'s expression, but part of a later expression. If a potential `c` has indentation greater than that, it will be associated with the `b` or `c` closest up and to the left of it.
+The indentation of each `c` expression must be greater than the indentation of the `a` expression
 
 For example, here the `d` is not associated with `a` because it does not have greater indentation than `a`:
 ```
 a b_1   | (a b_1)
 d       | d
-```
-
-Here the `d` is associated with `b_1` because it has greater indentation than `b_1`:
-```
-a b_1   | (a (b_1
-   d    |      d))
 ```
 
 And here the `d` is associated with `c_1` because it has greater indentation than `c_1`:
@@ -308,6 +257,17 @@ a b_1   | (a b_1
 
 The indentation does not group anything together if `a` is a `#:` keyword or a `.` dot.
 
+Wraith only considers leading indentation, because indentation within
+a line cannot be calculated exactly in the general case.
+
+For example, the indentation of this opening parenthesis depends on
+geopolitics, because regional-indicator symbols can be two or one
+letters wide depending on whether the region is defined on the system
+at the current time:
+
+🇩🇩 (a
+   a_or_b?)
+
 # Drawbacks
 [drawbacks]: #drawbacks
 
@@ -316,8 +276,6 @@ The indentation does not group anything together if `a` is a `#:` keyword or a `
 Wraith does not include algebra-style function calls `f(x,y)`, and does not include any precedence in infix notation, so `{x + y * z}` is not allowed.
 
 Wraith also does not allow you to write extra parentheses anywhere around any expression without changing meaning, so `(x)` is different from `x`.
-
-Wraith requires parentheses for zero-argument function calls, but not for one-or-more-argument calls, so `add1 5` can be called without parens while `(newline)` still needs parens to make it a call. This may look inconsistent.
 
 # Rationale and alternatives
 [rationale-and-alternatives]: #rationale-and-alternatives
