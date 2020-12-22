@@ -1,0 +1,230 @@
+#+title: Wraith
+#+latex_class_options: [a5paper,8pt]
+#+author: Alex Knauth and Christopher Lemmer Webber, \\
+#+author: based on ideas from Arne Babenhauserheide
+#+options: toc:nil
+#+latex_header: \usepackage{listings}
+#+latex_header: \usepackage{color}
+#+latex_header: \usepackage{microtype}
+# scheme definition for listings from https://github.com/stuhlmueller/scheme-listings/blob/master/lstlang0.sty
+#+latex: \lstdefinelanguage{scheme}{
+#+latex:   morekeywords=[1]{define, define-syntax, define-macro, lambda, define-stream, stream-lambda},
+#+latex:   morekeywords=[2]{begin, call-with-current-continuation, call/cc,
+#+latex:     call-with-input-file, call-with-output-file, case, cond,
+#+latex:     do, else, for-each, if,
+#+latex:     let*, let, let-syntax, letrec, letrec-syntax,
+#+latex:     let-values, let*-values,
+#+latex:     and, or, not, delay, force,
+#+latex:     quasiquote, quote, unquote, unquote-splicing,
+#+latex:     map, fold, syntax, syntax-rules, eval, environment, query },
+#+latex:   morekeywords=[3]{import, export},
+#+latex:   alsodigit=!\$\%&*+-./:<=>?@^_~,
+#+latex:   sensitive=true,
+#+latex:   morecomment=[l]{;},
+#+latex:   morecomment=[s]{\#|}{|\#},
+#+latex:   morestring=[b]",
+#+latex:   basicstyle=\scriptsize\ttfamily,
+#+latex:   keywordstyle=\bf\ttfamily\color[rgb]{0,.3,.7},
+#+latex:   commentstyle=\color[rgb]{0.133,0.545,0.133},
+#+latex:   stringstyle={\color[rgb]{0.75,0.49,0.07}},
+#+latex:   upquote=true,
+#+latex:   breaklines=true,
+#+latex:   breakatwhitespace=true,
+#+latex:   literate=*{`}{{`}}{1},
+#+latex:   showstringspaces=false
+#+latex: }
+* Summary
+  :PROPERTIES:
+  :CUSTOM_ID: summary
+  :END:
+
+Wraith is a syntax proposal that eliminates parentheses but has a clean
+translation to s-expression syntax.
+
+
+[[https://github.com/racket/racket2-rfcs/pull/0000][racket/racket2-rfcs#0000]]
+
+
+* Motivation
+  :PROPERTIES:
+  :CUSTOM_ID: motivation
+  :END:
+
+Many users are overwhelmed by parenthetical syntax and would like an
+alternative. Proposals such as Honu, Shrubbery are desirable in the
+sense of providing an alternative syntax that may be available to such
+users, but involve syntax transformations that involve significantly
+larger machinery. Meanwhile, s-expression syntax is well understood,
+studied, supported in the Racket community. This proposal expands on
+ideas from [[http://srfi.schemers.org/srfi-119/srfi-119.html][Wisp]]
+([[https://dustycloud.org/blog/wisp-lisp-alternative/][examples]]) but
+with some refinements.
+
+#+latex: \clearpage
+
+* Guide-level explanation
+  :PROPERTIES:
+  :CUSTOM_ID: guide-level-explanation
+  :END:
+
+  
+Consider the following Racket program, taken from the Racket
+[[https://docs.racket-lang.org/quick/index.html][quick introduction]]:
+
+#+begin_src scheme
+  define (add-drawing p)
+    define drawer
+      make-pict-drawer p
+    new canvas%
+        parent f
+        style '(border)
+        paint-callback
+          lambda (self dc)
+            drawer dc 0 0
+#+end_src
+
+This corresponds to the following Racket code:
+
+#+begin_src scheme
+  (define (add-drawing p)
+    (define drawer
+      (make-pict-drawer p))
+    (new canvas%
+         [parent f]
+         [style '(border)]
+         [paint-callback
+          (lambda (self dc)
+            (drawer dc 0 0))]))
+#+end_src
+
+The intuition here that a newline with indentation corresponds to a
+nested expression:
+
+#+begin_src scheme
+  define drawer                             |  (define drawer
+    make-pict-drawer p                      |    (make-pict-drawer p))
+#+end_src
+
+But how to handle many arguments that aren't composing a new expression?
+A leading =.= period can be used to continue a line:
+
+#+begin_src scheme
+  list 1 2 3                                |  (list 1 2 3
+     . 4 5 6                                |        4 5 6)
+#+end_src
+
+Keywords are implicitly considered to be continuing arguments in the
+previous expression:
+
+#+begin_src scheme
+  standard-cat 100 90                       |  (standard-cat 100 90
+               #:happy? #t                  |                #:happy? #t)
+#+end_src
+
+In general, indentation level does not matter super strongly; as long as
+"greater" than the previous, it is "nested into the parent expression":
+
+#+begin_src scheme
+  standard-cat                              |  (standard-cat
+    . 100 90                                |   100 90
+    #:happy? #t                             |   #:happy? #t)
+#+end_src
+
+Parentheses can be used to build a new nested expression. For instance:
+
+#+begin_src scheme
+  define drawer (make-pict-drawer p)        |  (define drawer (make-pict-drawer p))
+#+end_src
+
+#+begin_src scheme
+  define (display-excitement str reasons r2)|  (define (display-excitement str reason)
+    format "SO EXCITED about ~a (~a, ~a)!!" |    (format "SO EXCITED about ~a (~a, ~a)!!"
+           string-upcase str                |            (string-upcase str)
+           . reason r2                      |            reason r2))
+#+end_src
+
+Lines within a parenthetical expression still follow expressions still
+generally follow Wraith's rules (note that this is a departure from
+Sweet Expressions and Wisp!):
+
+#+begin_src scheme
+  let* [animal "dog"                        |  (let* [(animal "dog")
+        noise "barks"                       |         (noise "barks")
+        player-hears                        |         (player-hears
+          format "the ~a says: ~a!!!"       |          (format "the ~a says: ~a!!!"
+                 . animal noise]            |                  animal noise))]
+    displayln player-hears                  |    (displayln player-hears))
+#+end_src
+
+However, that let still looks busy. If we're deviating from
+s-expressions, is there a way to make it less nested?
+
+In traditional Racket S-Expression syntax, =()= and =[]= have only been
+differentiated by convention. In Wraith syntax, =[]= has a special
+meaning which can be described as "a wrapped set of wrapped
+expressions". This makes aesthetically more appealing =let= and =for=
+syntax examples.
+
+#+begin_src scheme
+  for [pet '("cat" "dog" "horse")]          |  (for [(pet '("cat" "dog" "horse"))]
+    printf "I love my ~a!\n" pet            |    (printf "I love my ~a!\n" pet))
+#+end_src
+
+#+begin_src scheme
+  define (counting-letters-song letters)    |  (define (counting-letters-song letters)
+    for [letter letters                     |    (for [(letter letters)
+         number (in-naturals 1)]            |          (number (in-naturals 1))]
+      printf "I like ~a, it's number ~a!"   |      (printf "I like ~a, it's number ~a!"
+        . letter number                     |         letter number)
+      newline                               |      (newline))
+    displayln "Singing a letters song!"     |    (displayln "Singing a letters song!"))
+#+end_src
+
+#+begin_src scheme
+  define (greeter name)                     |  (define (greeter name)
+    let [to-say                             |    (let ((to-say
+            format "Hey there ~a! :D"       |           (format "Hey there ~a! :D"
+                   . name]                  |                   name)))
+      displayln to-say                      |      (displayln to-say)))
+#+end_src
+
+New lines of content within parenthetical/bracketed expressions must
+have deeper indentation than the line with the opening parenthesis. In
+other words, the following is an error and not permitted:
+
+#+begin_src scheme
+  ;; Not allowed!
+  define a-list
+    '(1 2
+   3)
+#+end_src
+
+Finally, many potential users have grown up being taught mathematics
+using infix syntax. As such, a switch to prefix notation is seen as a
+major requirement for understandability. This is a reasonable request.
+However, infix notation also often introduces "order of operation
+problems", which confuse students and mathematicians everywhere and are
+generally solved by putting parentheses back around operations. Thus
+Wraith partially borrows from
+[[https://srfi.schemers.org/srfi-105/srfi-105.html][SRFI 105]] for curly
+infix operations but only permits one kind of infix operation per
+curly-grouping:
+
+#+begin_src scheme
+  define (double x)                      |  (define (double x)
+    . {x * 2}                            |    (* x 2))
+#+end_src
+
+#+begin_src scheme
+  define (squared-minus-one x)           |  (define (squared-minus-one x)
+    . {{x * x} - 1}                      |    (- (* x x) 1))
+#+end_src
+
+#+begin_src scheme
+  . {1 + 2 + {9 / 3}}                    |  (+ 1 2 (/ 9 3))
+#+end_src
+
+
+# Local Variables:
+# org-latex-listings: t
+# End:
