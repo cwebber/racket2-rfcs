@@ -4,7 +4,7 @@
 #+author: based on ideas from Arne Babenhauserheide
 #+options: toc:nil
 #+latex_header: \usepackage{listings}
-#+latex_header: \usepackage{color}
+#+latex_header: \usepackage{xcolor}
 #+latex_header: \usepackage{microtype}
 # scheme definition for listings from https://github.com/stuhlmueller/scheme-listings/blob/master/lstlang0.sty
 #+latex: \lstdefinelanguage{scheme}{
@@ -33,6 +33,13 @@
 #+latex:   literate=*{`}{{`}}{1},
 #+latex:   showstringspaces=false
 #+latex: }
+#+latex_header: \hypersetup{
+#+latex_header:     colorlinks,
+#+latex_header:     linkcolor={red!50!black},
+#+latex_header:     citecolor={blue!50!black},
+#+latex_header:     urlcolor={blue!80!black}
+#+latex_header: }
+
 * Summary
   :PROPERTIES:
   :CUSTOM_ID: summary
