@@ -8,6 +8,8 @@
 
 Wraith is a syntax proposal that eliminates parentheses but has a clean translation to s-expression syntax.
 
+To try out the current implementation, use the Racket package manager to install `git://github.com/cwebber/racket2-rfcs?path=wraith#wraith` and use the lang line `#lang wraith racket`.
+
 # Motivation
 [motivation]: #motivation
 
